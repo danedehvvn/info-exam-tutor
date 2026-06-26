@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="theme-color" content="#1f6feb">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="정보처리기사 튜터">
+<title>정보처리기사 튜터</title>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1c1c1e; --muted: #8e8e93;
+    --card: #f2f2f7; --card2: #e5e5ea; --line: #d1d1d6;
+    --accent: #1f6feb; --accent-fg: #ffffff; --warn: #ff9500;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #000000; --fg: #f2f2f7; --muted: #8e8e93;
+      --card: #1c1c1e; --card2: #2c2c2e; --line: #38383a;
+      --accent: #4d9bff; --accent-fg: #ffffff; --warn: #ff9f0a;
+    }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--fg);
+    padding-bottom: calc(70px + env(safe-area-inset-bottom));
+  }
+  header {
+    position: sticky; top: 0; z-index: 10;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+    padding: calc(env(safe-area-inset-top) + 12px) 16px 12px;
+    font-size: 20px; font-weight: 700;
+  }
+  main { padding: 16px; max-width: 760px; margin: 0 auto; }
+  .view { display: none; }
+  .view.active { display: block; }
+  label.section { display:block; font-size: 14px; font-weight: 600; margin: 18px 0 6px; }
+  select, textarea, input[type=password], input[type=text] {
+    width: 100%; font-size: 16px; color: var(--fg);
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px; font-family: inherit;
+  }
+  textarea { min-height: 120px; resize: vertical; }
+  .row { display: flex; gap: 10px; align-items: center; }
+  .row.between { justify-content: space-between; }
+  button {
+    font-size: 15px; font-family: inherit; cursor: pointer;
+    border: none; border-radius: 10px; padding: 10px 14px;
+    background: var(--card2); color: var(--fg);
+  }
+  button.primary { background: var(--accent); color: var(--accent-fg); font-weight: 700; width: 100%; padding: 14px; font-size: 16px; }
+  button.primary:disabled { opacity: .45; }
+  button.ghost { background: transparent; color: var(--accent); padding: 8px 6px; }
+  .thumbs { display: flex; gap: 8px; overflow-x: auto; padding: 4px 0; }
+  .thumb { position: relative; flex: 0 0 auto; }
+  .thumb img { width: 88px; height: 88px; object-fit: cover; border-radius: 8px; display:block; }
+  .thumb .x {
+    position: absolute; top: -6px; right: -6px; width: 22px; height: 22px;
+    border-radius: 50%; background: #000; color:#fff; border: 2px solid var(--bg);
+    font-size: 13px; line-height: 18px; text-align: center; padding: 0;
+  }
+  .banner { padding: 12px; border-radius: 10px; margin-top: 14px; font-size: 14px; }
+  .banner.warn { background: rgba(255,149,0,.14); color: var(--warn); }
+  .answer { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 14px; line-height: 1.6; }
+  .answer h2 { font-size: 19px; margin: 18px 0 8px; }
+  .answer h3 { font-size: 16px; margin: 14px 0 6px; }
+  .answer pre { background: var(--card); padding: 12px; border-radius: 8px; overflow-x: auto; }
+  .answer code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px; }
+  .answer pre code { font-size: 13px; }
+  .answer table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 14px; }
+  .answer th, .answer td { border: 1px solid var(--line); padding: 7px 9px; text-align: left; }
+  .answer th { background: var(--card2); }
+  .muted { color: var(--muted); }
+  .spinner { display:inline-block; width:18px; height:18px; border:2px solid var(--muted); border-top-color: transparent; border-radius:50%; animation: spin .7s linear infinite; vertical-align: -3px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  /* history */
+  .hist-item { padding: 14px 4px; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .hist-item .q { font-size: 15px; }
+  .hist-item .meta { font-size: 12px; color: var(--muted); margin-top: 4px; display:flex; justify-content: space-between; }
+  .empty { text-align:center; color: var(--muted); padding: 60px 20px; }
+  /* tab bar */
+  nav {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 20;
+    display: flex; background: var(--bg); border-top: 1px solid var(--line);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  nav button {
+    flex: 1; background: transparent; border-radius: 0; padding: 10px 0 6px;
+    color: var(--muted); font-size: 11px; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  }
+  nav button.active { color: var(--accent); }
+  nav button .ic { font-size: 20px; }
+  /* modal */
+  .modal-back { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 30; display:none; }
+  .modal-back.show { display:block; }
+  .modal {
+    position: fixed; inset: 0; z-index: 31; background: var(--bg);
+    overflow-y: auto; display:none;
+    padding: calc(env(safe-area-inset-top) + 8px) 16px calc(env(safe-area-inset-bottom) + 24px);
+  }
+  .modal.show { display:block; }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+
+<header id="topTitle">정보처리기사 튜터</header>
+
+<main>
+  <!-- 문제 풀이 -->
+  <section id="view-solve" class="view active">
+    <label class="section">문제 유형</label>
+    <select id="kind">
+      <option value="자동 인식">자동 인식</option>
+      <option value="C 언어">C 언어</option>
+      <option value="Java">Java</option>
+      <option value="Python">Python</option>
+      <option value="SQL">SQL</option>
+      <option value="단답형/이론">단답형/이론</option>
+    </select>
+
+    <div class="row between" style="margin-top:18px">
+      <label class="section" style="margin:0">문제 캡처</label>
+      <div class="row">
+        <button id="btnCamera">📷 촬영</button>
+        <button id="btnPhoto">🖼 사진 추가</button>
+      </div>
+    </div>
+    <input id="cameraInput" type="file" accept="image/*" capture="environment" class="hidden">
+    <input id="photoInput" type="file" accept="image/*" multiple class="hidden">
+    <div id="thumbs" class="thumbs"></div>
+
+    <label class="section">문제 입력 (선택)</label>
+    <textarea id="question" placeholder="문제를 직접 붙여넣거나, 위에 캡처만 올려도 됩니다."></textarea>
+
+    <div style="margin-top:16px">
+      <button id="btnSolve" class="primary">풀이 보기</button>
+    </div>
+
+    <div id="error" class="banner warn hidden"></div>
+    <div id="answer" class="answer hidden"></div>
+  </section>
+
+  <!-- 기록 -->
+  <section id="view-history" class="view">
+    <div class="row between" style="margin-top:4px">
+      <div></div>
+      <button id="btnClearHist" class="ghost">전체 삭제</button>
+    </div>
+    <div id="histList"></div>
+  </section>
+
+  <!-- 설정 -->
+  <section id="view-settings" class="view">
+    <label class="section">Anthropic API 키</label>
+    <input id="apiKey" type="password" placeholder="sk-ant-..." autocomplete="off">
+    <p class="muted" style="font-size:13px">키는 이 브라우저에만 저장되며 외부 서버로 전송되지 않습니다. console.anthropic.com 에서 발급받으세요.</p>
+    <button id="btnSaveKey" style="margin-top:4px">저장</button>
+
+    <label class="section">AI 모델</label>
+    <select id="model">
+      <option value="claude-opus-4-8">Opus 4.8 — 가장 정확 (기본)</option>
+      <option value="claude-sonnet-4-6">Sonnet 4.6 — 빠르고 저렴</option>
+      <option value="claude-haiku-4-5">Haiku 4.5 — 가장 빠름/저렴</option>
+    </select>
+    <p class="muted" style="font-size:13px">정확도가 중요하면 Opus, 속도·비용이 중요하면 Sonnet/Haiku.</p>
+  </section>
+</main>
+
+<!-- 기록 상세 모달 -->
+<div id="modalBack" class="modal-back"></div>
+<div id="modal" class="modal">
+  <div class="row between">
+    <button id="modalClose" class="ghost">‹ 닫기</button>
+    <button id="modalDelete" class="ghost" style="color:var(--warn)">삭제</button>
+  </div>
+  <h3 id="modalQ" style="margin-top:8px"></h3>
+  <div id="modalA" class="answer" style="border:none"></div>
+</div>
+
+<nav>
+  <button data-view="solve" class="active"><span class="ic">✏️</span>문제 풀이</button>
+  <button data-view="history"><span class="ic">🕘</span>기록</button>
+  <button data-view="settings"><span class="ic">⚙️</span>설정</button>
+</nav>
+
+<script>
+const $ = id => document.getElementById(id);
+const SYSTEM = `너는 한국 '정보처리기사 실기' 시험을 준비하는 수험생을 돕는 전문 과외 선생님이다.
+수험생이 코딩 문제(C, Java, Python, SQL)나 단답형/이론 문제를 텍스트나 캡처 이미지로 올린다.
+이미지가 있으면 그 안의 문제, 코드, 보기를 정확히 읽어서 푼다.
+
+반드시 아래 형식의 한국어 마크다운으로 답한다. 해당 없는 섹션은 생략한다.
+
+## 🎯 핵심 요약
+- 이 문제가 무엇을 묻는지, 무슨 개념을 알아야 하는지 1~3줄로.
+
+## 📖 단계별 풀이
+- 초보자도 이해하도록 한 단계씩 쉽게 설명한다. 어려운 용어는 풀어서 쓴다.
+
+## 🔢 코드 추적표 (코드 문제일 때만)
+- 반복문/변수 변화는 마크다운 표로 보여준다. 각 줄 실행마다 변수 값이 어떻게 바뀌는지.
+
+## 💡 쉽게 푸는 법 / 암기 팁
+- 시험장에서 빠르게 푸는 요령, 헷갈리지 않는 암기법, 흔히 하는 실수.
+
+## ⭐ 시험 포인트
+- 정보처리기사 실기에서 이 유형이 어떻게 출제되는지, 핵심적으로 봐야 할 부분.
+
+## ✅ 정답
+- 최종 답을 명확히. 출력 결과 문제면 정확한 출력값을, 단답형이면 정답 키워드를.
+
+규칙:
+- 추측하지 말고 코드를 한 줄씩 실제로 추적해서 정답을 낸다.
+- 출력 형식(공백, 줄바꿈, 자료형)에 주의한다. 정보처리기사는 사소한 출력 차이로 오답 처리된다.
+- 친절하고 격려하는 말투로, 하지만 정답은 단호하게 제시한다.`;
+
+const KIND_HINT = {
+  "자동 인식": "문제 유형은 직접 판단해줘.",
+  "C 언어": "이 문제는 C 언어 코드 추적 문제일 가능성이 높아.",
+  "Java": "이 문제는 Java 코드 추적/객체지향 문제일 가능성이 높아.",
+  "Python": "이 문제는 Python 코드 추적 문제일 가능성이 높아.",
+  "SQL": "이 문제는 SQL/데이터베이스 문제일 가능성이 높아.",
+  "단답형/이론": "이 문제는 단답형 또는 이론 문제일 가능성이 높아."
+};
+
+let images = []; // base64 (jpeg) 배열
+let busy = false;
+
+// ---------- 설정 저장/불러오기 ----------
+function loadSettings() {
+  $('apiKey').value = localStorage.getItem('apiKey') || '';
+  $('model').value = localStorage.getItem('model') || 'claude-opus-4-8';
+  $('kind').value = localStorage.getItem('kind') || '자동 인식';
+}
+$('btnSaveKey').onclick = () => {
+  localStorage.setItem('apiKey', $('apiKey').value.trim());
+  alert('저장되었습니다.');
+};
+$('model').onchange = () => localStorage.setItem('model', $('model').value);
+$('kind').onchange = () => localStorage.setItem('kind', $('kind').value);
+
+// ---------- 탭 전환 ----------
+document.querySelectorAll('nav button').forEach(b => {
+  b.onclick = () => {
+    const v = b.dataset.view;
+    document.querySelectorAll('nav button').forEach(x => x.classList.toggle('active', x === b));
+    document.querySelectorAll('.view').forEach(s => s.classList.remove('active'));
+    $('view-' + v).classList.add('active');
+    $('topTitle').textContent = v === 'history' ? '기록' : v === 'settings' ? '설정' : '정보처리기사 튜터';
+    if (v === 'history') renderHistory();
+  };
+});
+
+// ---------- 이미지 ----------
+$('btnCamera').onclick = () => $('cameraInput').click();
+$('btnPhoto').onclick = () => $('photoInput').click();
+$('cameraInput').onchange = e => handleFiles(e.target.files);
+$('photoInput').onchange = e => handleFiles(e.target.files);
+
+async function handleFiles(fileList) {
+  for (const file of fileList) {
+    try {
+      const b64 = await downscale(file, 1600, 0.8);
+      images.push(b64);
+    } catch (_) {}
+  }
+  $('cameraInput').value = '';
+  $('photoInput').value = '';
+  renderThumbs();
+}
+
+function downscale(file, maxDim, quality) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const longest = Math.max(img.width, img.height);
+      const scale = longest > maxDim ? maxDim / longest : 1;
+      const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      resolve(c.toDataURL('image/jpeg', quality).split(',')[1]);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('image load failed')); };
+    img.src = url;
+  });
+}
+
+function renderThumbs() {
+  $('thumbs').innerHTML = images.map((b, i) =>
+    `<div class="thumb"><img src="data:image/jpeg;base64,${b}"><button class="x" data-i="${i}">✕</button></div>`
+  ).join('');
+  $('thumbs').querySelectorAll('.x').forEach(btn => {
+    btn.onclick = () => { images.splice(+btn.dataset.i, 1); renderThumbs(); };
+  });
+}
+
+// ---------- 풀이 요청 (스트리밍) ----------
+$('btnSolve').onclick = solve;
+
+async function solve() {
+  if (busy) return;
+  const key = (localStorage.getItem('apiKey') || '').trim();
+  if (!key) { showError('API 키가 없습니다. 설정 탭에서 키를 입력하세요.'); switchTo('settings'); return; }
+
+  const qText = $('question').value.trim();
+  if (!qText && images.length === 0) { showError('문제를 입력하거나 캡처를 올려주세요.'); return; }
+
+  busy = true;
+  $('error').classList.add('hidden');
+  const ans = $('answer');
+  ans.classList.remove('hidden');
+  ans.innerHTML = '<span class="spinner"></span> <span class="muted">문제를 분석하고 있어요…</span>';
+  $('btnSolve').disabled = true;
+  $('btnSolve').textContent = '푸는 중…';
+
+  const kind = $('kind').value;
+  const content = [];
+  for (const b of images) {
+    content.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b } });
+  }
+  const body = qText || '첨부한 이미지의 문제를 정보처리기사 실기 기준으로 풀어줘.';
+  content.push({ type: 'text', text: KIND_HINT[kind] + '\n\n' + body });
+
+  const payload = {
+    model: localStorage.getItem('model') || 'claude-opus-4-8',
+    max_tokens: 16000,
+    stream: true,
+    system: SYSTEM,
+    messages: [{ role: 'user', content }]
+  };
+
+  let acc = '';
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(`API 오류 (${res.status}): ${parseErr(t)}`);
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let nl;
+      while ((nl = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, nl).trim();
+        buf = buf.slice(nl + 1);
+        if (!line.startsWith('data:')) continue;
+        const d = line.slice(5).trim();
+        if (!d || d === '[DONE]') continue;
+        let obj; try { obj = JSON.parse(d); } catch { continue; }
+        if (obj.type === 'content_block_delta' && obj.delta && obj.delta.type === 'text_delta') {
+          acc += obj.delta.text;
+          ans.innerHTML = marked.parse(acc);
+        } else if (obj.type === 'error') {
+          throw new Error(obj.error && obj.error.message ? obj.error.message : '오류');
+        }
+      }
+    }
+
+    if (acc.trim()) {
+      ans.innerHTML = marked.parse(acc);
+      saveHistory(kind, qText || (images.length ? '📷 이미지 문제' : '문제'), acc);
+    } else {
+      showError('응답을 받지 못했습니다.'); ans.classList.add('hidden');
+    }
+  } catch (e) {
+    showError(e.message || String(e));
+    ans.classList.add('hidden');
+  } finally {
+    busy = false;
+    $('btnSolve').disabled = false;
+    $('btnSolve').textContent = '풀이 보기';
+  }
+}
+
+function parseErr(t) {
+  try { const o = JSON.parse(t); return (o.error && o.error.message) || t; } catch { return t || '알 수 없는 오류'; }
+}
+function showError(msg) { const e = $('error'); e.textContent = '⚠️ ' + msg; e.classList.remove('hidden'); }
+function switchTo(v) { document.querySelector(`nav button[data-view="${v}"]`).click(); }
+
+// ---------- 기록 ----------
+function getHistory() { try { return JSON.parse(localStorage.getItem('history') || '[]'); } catch { return []; } }
+function setHistory(h) { localStorage.setItem('history', JSON.stringify(h)); }
+function saveHistory(kind, question, answer) {
+  const h = getHistory();
+  h.unshift({ id: Date.now() + '' + Math.random(), date: Date.now(), kind, question, answer });
+  setHistory(h.slice(0, 200));
+}
+function renderHistory() {
+  const h = getHistory();
+  if (h.length === 0) {
+    $('histList').innerHTML = '<div class="empty">🕘<br><br>아직 푼 문제가 없어요.<br>문제를 풀면 여기에 저장됩니다.</div>';
+    return;
+  }
+  $('histList').innerHTML = h.map(r => {
+    const dt = new Date(r.date);
+    const ds = `${dt.getMonth()+1}.${dt.getDate()} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
+    return `<div class="hist-item" data-id="${r.id}">
+      <div class="q">${escapeHtml(r.question).slice(0,80)}</div>
+      <div class="meta"><span>${escapeHtml(r.kind)}</span><span>${ds}</span></div>
+    </div>`;
+  }).join('');
+  $('histList').querySelectorAll('.hist-item').forEach(el => el.onclick = () => openModal(el.dataset.id));
+}
+$('btnClearHist').onclick = () => { if (confirm('모든 기록을 삭제할까요?')) { setHistory([]); renderHistory(); } };
+
+function escapeHtml(s) { return (s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+// ---------- 모달 ----------
+let modalId = null;
+function openModal(id) {
+  const r = getHistory().find(x => x.id === id);
+  if (!r) return;
+  modalId = id;
+  $('modalQ').textContent = r.question;
+  $('modalA').innerHTML = marked.parse(r.answer);
+  $('modal').classList.add('show'); $('modalBack').classList.add('show');
+}
+function closeModal() { $('modal').classList.remove('show'); $('modalBack').classList.remove('show'); modalId = null; }
+$('modalClose').onclick = closeModal;
+$('modalBack').onclick = closeModal;
+$('modalDelete').onclick = () => {
+  if (!modalId) return;
+  setHistory(getHistory().filter(x => x.id !== modalId));
+  closeModal(); renderHistory();
+};
+
+// 마크다운 옵션 (표/줄바꿈)
+marked.setOptions({ breaks: true, gfm: true });
+loadSettings();
+</script>
+</body>
+</html>
