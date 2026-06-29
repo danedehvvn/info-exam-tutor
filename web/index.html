@@ -9,6 +9,7 @@
 <meta name="apple-mobile-web-app-title" content="정보처리기사 튜터">
 <title>정보처리기사 튜터</title>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="warmup.js"></script>
 <style>
   :root {
     --bg: #ffffff; --fg: #1c1c1e; --muted: #8e8e93;
@@ -103,6 +104,18 @@
   }
   .modal.show { display:block; }
   .hidden { display:none !important; }
+  /* 워밍업 */
+  .wm-q { font-size: 17px; font-weight: 600; margin: 6px 0 12px; line-height: 1.5; }
+  .wm-cat { font-size: 12px; color: var(--muted); }
+  .wm-opt {
+    display: block; width: 100%; text-align: left; margin: 8px 0; padding: 14px;
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    font-size: 15px; line-height: 1.4;
+  }
+  .wm-opt.correct { background: rgba(52,199,89,.18); border-color: #34c759; }
+  .wm-opt.wrong { background: rgba(255,59,48,.18); border-color: #ff3b30; }
+  .wm-explain { margin-top: 12px; padding: 12px; background: var(--card2); border-radius: 10px; font-size: 14px; line-height: 1.5; }
+  .wm-score { font-size: 14px; color: var(--muted); }
 </style>
 </head>
 <body>
@@ -144,6 +157,18 @@
     <div id="answer" class="answer hidden"></div>
   </section>
 
+  <!-- 워밍업 -->
+  <section id="view-warmup" class="view">
+    <label class="section">카테고리</label>
+    <select id="wmCat"></select>
+    <div class="row between" style="margin-top:12px">
+      <span class="wm-score" id="wmScore">맞음 0 / 푼 문제 0</span>
+      <button id="wmReset" class="ghost">점수 초기화</button>
+    </div>
+    <div id="wmCard" style="margin-top:8px"></div>
+    <button id="wmStart" class="primary" style="margin-top:16px">문제 시작 🔥</button>
+  </section>
+
   <!-- 기록 -->
   <section id="view-history" class="view">
     <div class="row between" style="margin-top:4px">
@@ -183,6 +208,7 @@
 
 <nav>
   <button data-view="solve" class="active"><span class="ic">✏️</span>문제 풀이</button>
+  <button data-view="warmup"><span class="ic">🔥</span>워밍업</button>
   <button data-view="history"><span class="ic">🕘</span>기록</button>
   <button data-view="settings"><span class="ic">⚙️</span>설정</button>
 </nav>
@@ -250,8 +276,10 @@ document.querySelectorAll('nav button').forEach(b => {
     document.querySelectorAll('nav button').forEach(x => x.classList.toggle('active', x === b));
     document.querySelectorAll('.view').forEach(s => s.classList.remove('active'));
     $('view-' + v).classList.add('active');
-    $('topTitle').textContent = v === 'history' ? '기록' : v === 'settings' ? '설정' : '정보처리기사 튜터';
+    const titles = { history: '기록', settings: '설정', warmup: '워밍업 🔥' };
+    $('topTitle').textContent = titles[v] || '정보처리기사 튜터';
     if (v === 'history') renderHistory();
+    if (v === 'warmup') initWarmup();
   };
 });
 
@@ -446,6 +474,79 @@ $('modalDelete').onclick = () => {
   setHistory(getHistory().filter(x => x.id !== modalId));
   closeModal(); renderHistory();
 };
+
+// ---------- 워밍업 퀴즈 ----------
+let wmCorrect = 0, wmTotal = 0, wmCurrent = null, wmAnswered = false, wmLast = null, wmInited = false;
+
+function initWarmup() {
+  if (wmInited) return;
+  wmInited = true;
+  const bank = window.WARMUP_QUESTIONS || [];
+  const cats = ['전체', ...Array.from(new Set(bank.map(q => q.c)))];
+  $('wmCat').innerHTML = cats.map(c =>
+    `<option value="${c}">${c}${c === '전체' ? ` (${bank.length}문제)` : ''}</option>`).join('');
+  updateWmScore();
+}
+
+function wmPool() {
+  const bank = window.WARMUP_QUESTIONS || [];
+  const cat = $('wmCat').value;
+  return cat === '전체' ? bank : bank.filter(q => q.c === cat);
+}
+
+function updateWmScore() {
+  $('wmScore').textContent = `맞음 ${wmCorrect} / 푼 문제 ${wmTotal}`;
+}
+
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function nextWarmup() {
+  const pool = wmPool();
+  if (pool.length === 0) { $('wmCard').innerHTML = '<p class="muted">이 카테고리에 문제가 없어요.</p>'; return; }
+  let q;
+  do { q = pool[Math.floor(Math.random() * pool.length)]; } while (pool.length > 1 && q === wmLast);
+  wmLast = q; wmCurrent = q; wmAnswered = false;
+  renderWarmup();
+}
+
+function renderWarmup() {
+  const q = wmCurrent;
+  const opts = shuffle(q.o.map((t, i) => ({ t, correct: i === q.a })));
+  let html = `<div class="wm-cat">${escapeHtml(q.c)}</div><div class="wm-q">${escapeHtml(q.q)}</div>`;
+  html += opts.map((o, i) => `<button class="wm-opt" data-i="${i}">${escapeHtml(o.t)}</button>`).join('');
+  $('wmCard').innerHTML = html;
+  const btns = $('wmCard').querySelectorAll('.wm-opt');
+  btns.forEach((b, i) => b.onclick = () => answerWarmup(opts, i, btns));
+  $('wmStart').textContent = '다음 문제 →';
+}
+
+function answerWarmup(opts, chosen, btns) {
+  if (wmAnswered) return;
+  wmAnswered = true;
+  wmTotal++;
+  if (opts[chosen].correct) wmCorrect++;
+  btns.forEach((b, i) => {
+    b.disabled = true;
+    if (opts[i].correct) b.classList.add('correct');
+    else if (i === chosen) b.classList.add('wrong');
+  });
+  const ex = document.createElement('div');
+  ex.className = 'wm-explain';
+  ex.innerHTML = (opts[chosen].correct ? '✅ 정답! ' : '❌ 오답. ') + escapeHtml(wmCurrent.e);
+  $('wmCard').appendChild(ex);
+  updateWmScore();
+}
+
+$('wmStart').onclick = nextWarmup;
+$('wmCat').onchange = () => { $('wmCard').innerHTML = ''; $('wmStart').textContent = '문제 시작 🔥'; };
+$('wmReset').onclick = () => { wmCorrect = 0; wmTotal = 0; updateWmScore(); };
 
 // 마크다운 옵션 (표/줄바꿈)
 marked.setOptions({ breaks: true, gfm: true });
