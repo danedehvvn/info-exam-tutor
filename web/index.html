@@ -166,11 +166,15 @@
   <section id="view-warmup" class="view">
     <div class="seg">
       <button id="wmModeObj" class="seg-btn active">객관식</button>
-      <button id="wmModeSub" class="seg-btn">주관식(해킹)</button>
+      <button id="wmModeSub" class="seg-btn">주관식(단어장)</button>
     </div>
     <div id="wmObjControls">
       <label class="section" style="margin-top:4px">카테고리</label>
       <select id="wmCat"></select>
+    </div>
+    <div id="wmSubControls" style="display:none">
+      <label class="section" style="margin-top:4px">주제</label>
+      <select id="wmTopic"></select>
     </div>
     <div class="row between" style="margin-top:12px">
       <span class="wm-score" id="wmScore">맞음 0 / 푼 문제 0</span>
@@ -498,6 +502,10 @@ function initWarmup() {
   const cats = ['전체', ...Array.from(new Set(bank.map(q => q.c)))];
   $('wmCat').innerHTML = cats.map(c =>
     `<option value="${c}">${c}${c === '전체' ? ` (${bank.length}문제)` : ''}</option>`).join('');
+  const sub = window.SUBJECTIVE_QUESTIONS || [];
+  const topics = ['전체', ...Array.from(new Set(sub.map(q => q.t)))];
+  $('wmTopic').innerHTML = topics.map(t =>
+    `<option value="${t}">${t}${t === '전체' ? ` (${sub.length}문제)` : ''}</option>`).join('');
   updateWmScore();
 }
 
@@ -562,18 +570,24 @@ function answerWarmup(opts, chosen, btns) {
 }
 
 // ----- 주관식(해킹) 모드 -----
-function nextSubjective() {
+function subPool() {
   const bank = window.SUBJECTIVE_QUESTIONS || [];
-  if (bank.length === 0) { $('wmCard').innerHTML = '<p class="muted">주관식 문제가 없어요.</p>'; return; }
+  const t = $('wmTopic').value;
+  return (!t || t === '전체') ? bank : bank.filter(q => q.t === t);
+}
+
+function nextSubjective() {
+  const pool = subPool();
+  if (pool.length === 0) { $('wmCard').innerHTML = '<p class="muted">이 주제에 문제가 없어요.</p>'; return; }
   let q;
-  do { q = bank[Math.floor(Math.random() * bank.length)]; } while (bank.length > 1 && q === subLast);
+  do { q = pool[Math.floor(Math.random() * pool.length)]; } while (pool.length > 1 && q === subLast);
   subLast = q; subCurrent = q; subRevealed = false;
   renderSubjective();
 }
 
 function renderSubjective() {
   const q = subCurrent;
-  let html = `<div class="wm-cat">주관식 · 해킹 공격</div><div class="wm-q">${escapeHtml(q.q)}</div>`;
+  let html = `<div class="wm-cat">${escapeHtml(q.t)}</div><div class="wm-q">${escapeHtml(q.q)}</div>`;
   html += `<textarea id="subInput" placeholder="정답을 떠올려 적어보세요 (선택)"></textarea>`;
   html += `<button id="subReveal" class="wm-opt" style="text-align:center;font-weight:600">정답 확인 👀</button>`;
   $('wmCard').innerHTML = html;
@@ -588,7 +602,7 @@ function revealSubjective() {
   $('subReveal').disabled = true;
   const box = document.createElement('div');
   box.className = 'wm-explain';
-  box.innerHTML = `<b>정답:</b> ${escapeHtml(q.a)}<br>${escapeHtml(q.e || '')}` +
+  box.innerHTML = `<b>정답:</b> ${escapeHtml(q.a)}` +
     `<div class="row" style="gap:10px;margin-top:12px">
        <button id="subKnew" class="wm-opt" style="margin:0;text-align:center">알았음 ✅</button>
        <button id="subMissed" class="wm-opt" style="margin:0;text-align:center">몰랐음 ❌</button>
@@ -612,6 +626,7 @@ function setWmMode(m) {
   $('wmModeObj').classList.toggle('active', m === 'obj');
   $('wmModeSub').classList.toggle('active', m === 'sub');
   $('wmObjControls').style.display = m === 'obj' ? '' : 'none';
+  $('wmSubControls').style.display = m === 'sub' ? '' : 'none';
   $('wmCard').innerHTML = '';
   $('wmStart').textContent = '문제 시작 🔥';
   updateWmScore();
@@ -621,6 +636,7 @@ $('wmModeObj').onclick = () => setWmMode('obj');
 $('wmModeSub').onclick = () => setWmMode('sub');
 $('wmStart').onclick = () => (wmMode === 'sub' ? nextSubjective() : nextWarmup());
 $('wmCat').onchange = () => { $('wmCard').innerHTML = ''; $('wmStart').textContent = '문제 시작 🔥'; };
+$('wmTopic').onchange = () => { $('wmCard').innerHTML = ''; $('wmStart').textContent = '문제 시작 🔥'; };
 $('wmReset').onclick = () => {
   if (wmMode === 'sub') { subScore = 0; subTotal = 0; }
   else { wmCorrect = 0; wmTotal = 0; }
