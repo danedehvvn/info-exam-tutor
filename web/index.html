@@ -121,6 +121,17 @@
   .seg-btn { flex: 1; padding: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; color: var(--muted); font-size: 14px; }
   .seg-btn.active { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); font-weight: 700; }
   #subInput { width: 100%; margin: 8px 0; }
+  /* 주관식 30문제 배치 */
+  .sq-item { border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin: 10px 0; background: var(--card); }
+  .sq-item.sq-correct { border-color: #34c759; background: rgba(52,199,89,.10); }
+  .sq-item.sq-wrong { border-color: #ff3b30; background: rgba(255,59,48,.10); }
+  .sq-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .sq-num { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 11px; background: var(--accent); color: var(--accent-fg); font-size: 12px; font-weight: 700; }
+  .sq-q { font-size: 15px; line-height: 1.5; margin-bottom: 8px; }
+  .sq-input { width: 100%; }
+  .sq-ans { margin-top: 8px; font-size: 14px; line-height: 1.5; }
+  .sq-toggle { margin-left: 10px; font-size: 12px; padding: 4px 8px; background: var(--card2); border-radius: 8px; }
+  .sq-summary { background: var(--accent); color: var(--accent-fg); font-weight: 700; text-align: center; padding: 14px; border-radius: 10px; margin-bottom: 12px; font-size: 17px; }
 </style>
 </head>
 <body>
@@ -493,7 +504,9 @@ $('modalDelete').onclick = () => {
 // ---------- 워밍업 퀴즈 ----------
 let wmCorrect = 0, wmTotal = 0, wmCurrent = null, wmAnswered = false, wmLast = null, wmInited = false;
 let wmMode = 'obj'; // 'obj'(객관식) | 'sub'(주관식)
-let subScore = 0, subTotal = 0, subCurrent = null, subLast = null, subRevealed = false;
+let subState = 'idle';      // 'idle' | 'solving' | 'graded'
+let subBatch = [], subGraded = [], subScoreText = '아직 채점 전';
+const SUB_N = 30;           // 한 회차 문제 수
 
 function initWarmup() {
   if (wmInited) return;
@@ -517,7 +530,7 @@ function wmPool() {
 
 function updateWmScore() {
   if (wmMode === 'sub') {
-    $('wmScore').textContent = `알았음 ${subScore} / 푼 문제 ${subTotal}`;
+    $('wmScore').textContent = subScoreText;
   } else {
     $('wmScore').textContent = `맞음 ${wmCorrect} / 푼 문제 ${wmTotal}`;
   }
@@ -576,49 +589,82 @@ function subPool() {
   return (!t || t === '전체') ? bank : bank.filter(q => q.t === t);
 }
 
-function nextSubjective() {
+// 정답 비교용 정규화 (공백·괄호·기호·대소문자 무시)
+function normAns(s) {
+  return (s || '').toString().toLowerCase()
+    .replace(/\s+/g, '').replace(/[()\[\]（）·.,/\-_'"]/g, '');
+}
+// 자동 채점: 사용자가 정답 전체/괄호 앞 핵심어/괄호 안 약어 중 하나를 맞히면 정답
+function subIsCorrect(input, answer) {
+  const u = normAns(input);
+  if (!u) return false;
+  const full = normAns(answer);
+  const core = normAns(answer.split('(')[0]);
+  const m = answer.match(/\(([^)]*)\)/);
+  const paren = m ? normAns(m[1]) : '';
+  return u === full || u === core || (!!paren && u === paren);
+}
+
+// 30문제(중복 없이) 출제
+function startSubjective() {
   const pool = subPool();
   if (pool.length === 0) { $('wmCard').innerHTML = '<p class="muted">이 주제에 문제가 없어요.</p>'; return; }
-  let q;
-  do { q = pool[Math.floor(Math.random() * pool.length)]; } while (pool.length > 1 && q === subLast);
-  subLast = q; subCurrent = q; subRevealed = false;
-  renderSubjective();
-}
-
-function renderSubjective() {
-  const q = subCurrent;
-  let html = `<div class="wm-cat">${escapeHtml(q.t)}</div><div class="wm-q">${escapeHtml(q.q)}</div>`;
-  html += `<textarea id="subInput" placeholder="정답을 떠올려 적어보세요 (선택)"></textarea>`;
-  html += `<button id="subReveal" class="wm-opt" style="text-align:center;font-weight:600">정답 확인 👀</button>`;
-  $('wmCard').innerHTML = html;
-  $('subReveal').onclick = revealSubjective;
-  $('wmStart').textContent = '다음 문제 →';
-}
-
-function revealSubjective() {
-  if (subRevealed) return;
-  subRevealed = true;
-  const q = subCurrent;
-  $('subReveal').disabled = true;
-  const box = document.createElement('div');
-  box.className = 'wm-explain';
-  box.innerHTML = `<b>정답:</b> ${escapeHtml(q.a)}` +
-    `<div class="row" style="gap:10px;margin-top:12px">
-       <button id="subKnew" class="wm-opt" style="margin:0;text-align:center">알았음 ✅</button>
-       <button id="subMissed" class="wm-opt" style="margin:0;text-align:center">몰랐음 ❌</button>
-     </div>`;
-  $('wmCard').appendChild(box);
-  $('subKnew').onclick = () => scoreSub(true);
-  $('subMissed').onclick = () => scoreSub(false);
-}
-
-function scoreSub(knew) {
-  subTotal++;
-  if (knew) { subScore++; $('subKnew').classList.add('correct'); }
-  else { $('subMissed').classList.add('wrong'); }
-  $('subKnew').disabled = true;
-  $('subMissed').disabled = true;
+  const n = Math.min(SUB_N, pool.length);
+  subBatch = shuffle(pool).slice(0, n);   // 셔플 후 앞 n개 → 서로 중복 없음
+  subGraded = [];
+  subState = 'solving';
+  subScoreText = `${n}문제 · 채점 전`;
   updateWmScore();
+  const html = subBatch.map((q, i) => `
+    <div class="sq-item" id="sq-${i}">
+      <div class="sq-head"><span class="sq-num">${i + 1}</span><span class="wm-cat">${escapeHtml(q.t)}</span></div>
+      <div class="sq-q">${escapeHtml(q.q)}</div>
+      <input class="sq-input" id="sqi-${i}" type="text" autocomplete="off" autocapitalize="off" placeholder="정답 입력">
+      <div class="sq-ans hidden" id="sqa-${i}"></div>
+    </div>`).join('');
+  $('wmCard').innerHTML = html;
+  $('wmStart').textContent = '채점하기 ✅';
+  $('wmCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// 채점
+function gradeSubjective() {
+  subGraded = subBatch.map((q, i) => subIsCorrect(($('sqi-' + i) || {}).value || '', q.a));
+  subBatch.forEach((q, i) => {
+    const inp = $('sqi-' + i); if (inp) inp.disabled = true;
+    renderSubResult(i);
+  });
+  subState = 'graded';
+  showSubScore(true);
+  $('wmStart').textContent = '새 문제 30개 🔄';
+  $('wmCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderSubResult(i) {
+  const ok = subGraded[i];
+  const item = $('sq-' + i);
+  item.classList.toggle('sq-correct', ok);
+  item.classList.toggle('sq-wrong', !ok);
+  const ans = $('sqa-' + i);
+  ans.classList.remove('hidden');
+  ans.innerHTML = `${ok ? '✅' : '❌'} 정답: <b>${escapeHtml(subBatch[i].a)}</b>` +
+    `<button class="sq-toggle" data-i="${i}">${ok ? '오답 처리' : '정답 처리'}</button>`;
+  ans.querySelector('.sq-toggle').onclick = () => { subGraded[i] = !subGraded[i]; renderSubResult(i); showSubScore(false); };
+}
+
+function showSubScore(scroll) {
+  const c = subGraded.filter(Boolean).length;
+  const n = subBatch.length;
+  subScoreText = `${c} / ${n} 정답`;
+  updateWmScore();
+  let bar = $('sqSummary');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'sqSummary'; bar.className = 'sq-summary';
+    $('wmCard').prepend(bar);
+  }
+  const pct = n ? Math.round(c / n * 100) : 0;
+  bar.textContent = `결과: ${c} / ${n} 정답 (${pct}%)`;
 }
 
 function setWmMode(m) {
@@ -628,19 +674,31 @@ function setWmMode(m) {
   $('wmObjControls').style.display = m === 'obj' ? '' : 'none';
   $('wmSubControls').style.display = m === 'sub' ? '' : 'none';
   $('wmCard').innerHTML = '';
-  $('wmStart').textContent = '문제 시작 🔥';
+  if (m === 'sub') { resetSubjective(); }
+  else { $('wmStart').textContent = '문제 시작 🔥'; }
+  updateWmScore();
+}
+
+function resetSubjective() {
+  subState = 'idle'; subBatch = []; subGraded = [];
+  subScoreText = '아직 채점 전';
+  $('wmCard').innerHTML = '';
+  $('wmStart').textContent = '30문제 풀기 🔥';
   updateWmScore();
 }
 
 $('wmModeObj').onclick = () => setWmMode('obj');
 $('wmModeSub').onclick = () => setWmMode('sub');
-$('wmStart').onclick = () => (wmMode === 'sub' ? nextSubjective() : nextWarmup());
+$('wmStart').onclick = () => {
+  if (wmMode !== 'sub') { nextWarmup(); return; }
+  if (subState === 'solving') gradeSubjective();
+  else startSubjective();          // idle 또는 graded → 새 회차
+};
 $('wmCat').onchange = () => { $('wmCard').innerHTML = ''; $('wmStart').textContent = '문제 시작 🔥'; };
-$('wmTopic').onchange = () => { $('wmCard').innerHTML = ''; $('wmStart').textContent = '문제 시작 🔥'; };
+$('wmTopic').onchange = resetSubjective;
 $('wmReset').onclick = () => {
-  if (wmMode === 'sub') { subScore = 0; subTotal = 0; }
-  else { wmCorrect = 0; wmTotal = 0; }
-  updateWmScore();
+  if (wmMode === 'sub') { resetSubjective(); }
+  else { wmCorrect = 0; wmTotal = 0; updateWmScore(); }
 };
 
 // 마크다운 옵션 (표/줄바꿈)
