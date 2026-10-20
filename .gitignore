@@ -8,3 +8,6 @@ DerivedData/
 xcuserdata/
 *.xcscmblueprint
 *.xccheckout
+
+# Local Netlify folder
+.netlify
